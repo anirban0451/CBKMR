@@ -161,7 +161,7 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
   accrho <- 0
   h <- h_star <- rep(0, N)
   w <- rep(1, p)                          # initialize inverse lengthscales, r_m's, calling the vector w instead of r
-  w[sample(1:p, size = floor(p/2))] <- 0  # set half of the r_m's to zero at the start]
+  w[sample(1:p, size = floor(0.6*p))] <- 0  # set 60% of the r_m's to zero at the start]
   z <- rep(1, N)                          # initialize latent factors
   delta <- rep(1, p)                      # initialize spike and slab indicator, all variables are included at the start
   lambda0 <- rep(1, p)
@@ -194,10 +194,6 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
     #########################
     tau_prop <- rnorm(1, mean = tau, sd = 0.25) # propose a new value for tau using a Normal rw
 
-    loglik_curr_store <- logdmvn_arma_with_U(F_y, Sigma_curr)
-    loglik_curr <- loglik_curr_store$log_density
-    Ut <- loglik_curr_store$Ut
-
     # Reject immediately if outside (0, 1)
     if (tau_prop >= 0 && tau_prop <= 1) {
       # Log-priors (currently using Beta(1, 1), uniform — can generalize)
@@ -209,15 +205,24 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
       Sigma_curr <- K * tau + diag(1 - tau, N)
 
       loglik_prop_store <- logdmvn_arma_with_U(F_y, Sigma_prop)
-
+      loglik_curr_store <- logdmvn_arma_with_U(F_y, Sigma_curr)
       loglik_prop <- loglik_prop_store$log_density
+      loglik_curr <- loglik_curr_store$log_density
 
       log_alpha <- (loglik_prop + logprior_prop) - (loglik_curr + logprior_curr)
       if (log(runif(1)) < log_alpha) {
         tau <- tau_prop
         Ut <- loglik_prop_store$Ut
+      }else{
+        Ut <- loglik_curr_store$Ut
       }
 
+    }else{
+      if(i == 1){
+        Sigma_curr <- K * tau + diag(1 - tau, N)
+        loglik_curr_store <- logdmvn_arma_with_U(F_y, Sigma_curr)
+        Ut = loglik_curr_store$Ut
+      }
     }
 
     #update beta0
