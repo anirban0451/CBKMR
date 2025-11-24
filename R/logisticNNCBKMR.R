@@ -248,17 +248,7 @@ logistic_BKMR_dt_correct_beta_rnngp <- function(y, Z = Z, nsim = 5000,  verbose 
       wmat[j, ]<-w
       delmat[j, ]<-delta
     }
-    if(isTRUE(update_ordering && i%%update_steps == 0)){
-      # veccs_obj = vecchia_respecify(locs = Z, rel = w, m = 30, ordering = "maxmin", conditioning = "mra", ic0=TRUE)
-      # K = Sig.sel.rel(1, veccs_obj)
-      which_nonz = which(delta > 0)
-      w_sub = w[which_nonz]
-      set.seed(202507)
-      Zord = GpGp::order_maxmin(t(w_sub*t(Z[, which_nonz, drop=FALSE])))
-      nngp_obj$ordering = Zord
-      nngp_obj$nn_ind = find_ordered_nn_wvec(locs = Z[nngp_obj$ordering, , drop=FALSE], w = w, m = nngp_obj$m)
-    }
-    if(verbose == "TRUE"){
+    if(verbose){
       svMisc::progress(i, nsim, progress.bar = FALSE)
     }else{if(i%%500 == 0){print(paste0(i, " / ", nsim))}
     }
