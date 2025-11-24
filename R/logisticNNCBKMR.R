@@ -114,7 +114,7 @@ update_r_delta_joint_distribution_transform_rnngp <- function(delta, w,  y, Z,  
               Acc2 = Acc2, F_y = F_y, nngp_obj = nngp_obj))
 }
 
-logistic_BKMR_dt_correct_beta_rnngp <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, neighbor_size = 20, beta0_scheme = 1){
+logisticNNCBKMR <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, neighbor_size = 20, beta0_scheme = 1, ...){
 
   Z = scale(Z)  # standardize Z
 
@@ -147,8 +147,6 @@ logistic_BKMR_dt_correct_beta_rnngp <- function(y, Z = Z, nsim = 5000,  verbose 
   }else{
     stop("Invalid scheme selected for updating beta0.")
   }
-
-  rnngp_loglik_tauonly_use_AD <- rnngp_loglik_tauonly_use_AD
 
   r.params <- list(r.a = 0, r.b = 5, r.jump2 = 0.5)
 
