@@ -4,7 +4,7 @@
 \alias{logisticCBKMR}
 \title{CBKMR for logistic regression (with logit link) without additional covariates}
 \usage{
-logisticCBKMR(y, Z, nsim = 5000, verbose = TRUE, thres = 10, beta0_scheme)
+logisticCBKMR(y, Z, nsim = 5000, verbose = TRUE, thres = 10, beta0_scheme, ...)
 }
 \arguments{
 \item{y}{An N-dimensional vector of binary responses (0/1)}

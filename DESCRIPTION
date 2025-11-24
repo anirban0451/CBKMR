@@ -13,4 +13,5 @@ LinkingTo:
     RcppArmadillo
 Imports: 
     GpGp,
-    Rcpp
+    Rcpp,
+    stats
