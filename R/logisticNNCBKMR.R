@@ -125,6 +125,27 @@ logisticNNCBKMR <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, 
     seed <- 1234
   }
 
+  if (!is.null(extra_args$r.a)) {
+    r.a <- extra_args$r.a
+  } else {
+    r.a <- 0
+  }
+  if (!is.null(extra_args$r.b)) {
+    r.b <- extra_args$r.b
+  } else {
+    r.b <- 5
+  }
+  if (!is.null(extra_args$r.jump2)) {
+    r.jump2 <- extra_args$r.jump2
+  } else {
+    r.jump2 <- 0.5
+  }
+
+  set.seed(seed)
+
+  # r.params <- list(r.a = 0, r.b = 5, r.jump2 = 0.5)
+  r.params <- list(r.a = r.a, r.b = r.b, r.jump2 = r.jump2)
+
   set.seed(seed)
 
   # set initial ordering using GpGp package
@@ -147,8 +168,6 @@ logisticNNCBKMR <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, 
   }else{
     stop("Invalid scheme selected for updating beta0.")
   }
-
-  r.params <- list(r.a = 0, r.b = 5, r.jump2 = 0.5)
 
   N <- length(y)            # Number of samples
   p <- ncol(Z)              # Number of features inside kernel

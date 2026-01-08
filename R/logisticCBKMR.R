@@ -125,9 +125,26 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
     seed <- 1234
   }
 
+  if (!is.null(extra_args$r.a)) {
+    r.a <- extra_args$r.a
+  } else {
+    r.a <- 0
+  }
+  if (!is.null(extra_args$r.b)) {
+    r.b <- extra_args$r.b
+  } else {
+    r.b <- 5
+  }
+  if (!is.null(extra_args$r.jump2)) {
+    r.jump2 <- extra_args$r.jump2
+  } else {
+    r.jump2 <- 0.5
+  }
+
   set.seed(seed)
 
-  r.params <- list(r.a = 0, r.b = 5, r.jump2 = 0.5)
+  # r.params <- list(r.a = 0, r.b = 5, r.jump2 = 0.5)
+  r.params <- list(r.a = r.a, r.b = r.b, r.jump2 = r.jump2)
   if(beta0_scheme == 1){
     # update through random walk Metropolis
     update_beta0_fn <- update_beta0_with_MH_no_X
