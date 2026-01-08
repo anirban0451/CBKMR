@@ -271,6 +271,9 @@ logisticNNCBKMR <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, 
     }
   }
 
+  mcmc.setup.details <- list(thin = thin, burn = burn, lastit = lastit,
+                             r.params = r.params, seed = seed)
+
   return(NB = list(Beta = Beta, tau =  tau_mat,  wmat = wmat, delta = delmat,
-                   Acc1 = Acc1, Acc2 = Acc2))
+                   Acc1 = Acc1, Acc2 = Acc2, mcmc.setup.details = mcmc.setup.details))
 }
