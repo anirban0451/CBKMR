@@ -125,6 +125,21 @@ logisticNNCBKMR <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, 
     seed <- 1234
   }
 
+  if (!is.null(extra_args$priordist)) {
+    priordist <- extra_args$priordist
+    if (!(priordist %in% c("uniform", "dgamma", "dhcauchy", "invunif"))) {
+      stop("Invalid prior distribution specified. Choose from 'uniform', 'dgamma', 'dhcauchy', or 'invunif'.")
+    }
+  } else {
+    priordist = "uniform"
+  }
+
+  rprior.logdens <- switch(priordist,
+                           "uniform" = rprior.logdens.unif,
+                           "dgamma" = rprior.logdens.dgamma,
+                           "dhcauchy" = rprior.logdens.dhcauchy,
+                           "invunif" = rprior.logdens.invunif)
+
   if (!is.null(extra_args$r.a)) {
     r.a <- extra_args$r.a
   } else {
@@ -140,11 +155,20 @@ logisticNNCBKMR <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, 
   } else {
     r.jump2 <- 0.5
   }
+  if(!is.null(extra_args$mu.r)){
+    mu.r <- extra_args$mu.r
+  }else{
+    mu.r <- 2
+  }
+  if(!is.null(extra_args$sigma.r)){
+    sigma.r <- extra_args$sigma.r
+  }else{
+    sigma.r <- 1
+  }
 
   set.seed(seed)
 
-  # r.params <- list(r.a = 0, r.b = 5, r.jump2 = 0.5)
-  r.params <- list(r.a = r.a, r.b = r.b, r.jump2 = r.jump2)
+  r.params <- list(r.a = r.a, r.b = r.b, r.jump2 = r.jump2, mu.r = mu.r, sigma.r = sigma.r)
 
   set.seed(seed)
 
@@ -271,7 +295,7 @@ logisticNNCBKMR <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, 
     }
   }
 
-  mcmc.setup.details <- list(thin = thin, burn = burn, lastit = lastit,
+  mcmc.setup.details <- list(priordistn = priordist, thin = thin, burn = burn, lastit = lastit,
                              r.params = r.params, seed = seed)
 
   return(NB = list(Beta = Beta, tau =  tau_mat,  wmat = wmat, delta = delmat,

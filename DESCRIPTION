@@ -12,6 +12,7 @@ LinkingTo:
     Rcpp,
     RcppArmadillo
 Imports: 
+    extraDistr,
     GpGp,
     Rcpp,
     stats

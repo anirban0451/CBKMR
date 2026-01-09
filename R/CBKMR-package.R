@@ -1,4 +1,5 @@
 ## usethis namespace: start
+#' @importFrom extraDistr dhcauchy
 #' @importFrom GpGp find_ordered_nn
 #' @importFrom GpGp order_maxmin
 #' @importFrom Rcpp sourceCpp
