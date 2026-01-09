@@ -21,7 +21,8 @@ find_ordered_nn_wvec <- function(locs, w, m, wthres=1e-4){
 }
 
 update_r_delta_joint_distribution_transform_rnngp <- function(delta, w,  y, Z,  eta, K, tau, a.p0, b.p0, p, N,
-                                          r.params, thres, Acc1, Acc2, i, nngp_obj){
+                                          r.params, thres, Acc1, Acc2, i, nngp_obj,
+                                          rprior.logdens, rprop.gen1, rprop.logdens1, rprop.gen2, rprop.logdens2){
 
   Z_NN1 = nngp_obj$nn_ind
 
@@ -127,7 +128,7 @@ logisticNNCBKMR <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, 
 
   if (!is.null(extra_args$priordist)) {
     priordist <- extra_args$priordist
-    if (!(priordist %in% c("uniform", "dgamma", "dhcauchy", "invunif"))) {
+    if (!(priordist %in% c("uniform", "gamma", "hcauchy", "invunif"))) {
       stop("Invalid prior distribution specified. Choose from 'uniform', 'dgamma', 'dhcauchy', or 'invunif'.")
     }
   } else {
@@ -136,9 +137,13 @@ logisticNNCBKMR <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, 
 
   rprior.logdens <- switch(priordist,
                            "uniform" = rprior.logdens.unif,
-                           "dgamma" = rprior.logdens.dgamma,
-                           "dhcauchy" = rprior.logdens.dhcauchy,
+                           "gamma" = rprior.logdens.dgamma,
+                           "hcauchy" = rprior.logdens.dhcauchy,
                            "invunif" = rprior.logdens.invunif)
+  rprop.gen1 <- rprop.gen1.unif
+  rprop.logdens1 <- rprop.logdens1.unif
+  rprop.gen2 <- rprop.gen2.truncnorm
+  rprop.logdens2 <- rprop.logdens2.truncnorm
 
   if (!is.null(extra_args$r.a)) {
     r.a <- extra_args$r.a
@@ -235,7 +240,12 @@ logisticNNCBKMR <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, 
     #update inverse lengthscales (r_m's) and delta_m's
     ##################################################
     out <- update_r_delta_joint_distribution_transform_rnngp(delta, w,  y, Z,  eta, K, tau, a.p0, b.p0, p, N,
-                                         r.params, thres, Acc1, Acc2, i, nngp_obj = nngp_obj)
+                                         r.params, thres, Acc1, Acc2, i, nngp_obj = nngp_obj,
+                                         rprior.logdens = rprior.logdens,
+                                         rprop.gen1 = rprop.gen1,
+                                         rprop.logdens1 = rprop.logdens1,
+                                         rprop.gen2 = rprop.gen2,
+                                         rprop.logdens2 = rprop.logdens2)
     w <- out$w
     delta <- out$delta
 

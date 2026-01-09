@@ -1,5 +1,6 @@
 update_r_delta_joint_distribution_transform <- function(delta, w,  y, Z,  eta, K, tau, a.p0, b.p0, p, N,
-                                                        r.params, thres, Acc1, Acc2, i){
+                                                        r.params, thres, Acc1, Acc2, i,
+                                                        rprior.logdens, rprop.gen1, rprop.logdens1, rprop.gen2, rprop.logdens2){
 
   n <- length(y)
   r_new <-  r.star <- w
@@ -127,7 +128,7 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
 
   if (!is.null(extra_args$priordist)) {
     priordist <- extra_args$priordist
-    if (!(priordist %in% c("uniform", "dgamma", "dhcauchy", "invunif"))) {
+    if (!(priordist %in% c("uniform", "gamma", "hcauchy", "invunif"))) {
       stop("Invalid prior distribution specified. Choose from 'uniform', 'dgamma', 'dhcauchy', or 'invunif'.")
     }
   } else {
@@ -136,9 +137,14 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
 
   rprior.logdens <- switch(priordist,
                            "uniform" = rprior.logdens.unif,
-                           "dgamma" = rprior.logdens.dgamma,
-                           "dhcauchy" = rprior.logdens.dhcauchy,
+                           "gamma" = rprior.logdens.dgamma,
+                           "hcauchy" = rprior.logdens.dhcauchy,
                            "invunif" = rprior.logdens.invunif)
+
+  rprop.gen1 <- rprop.gen1.unif
+  rprop.logdens1 <- rprop.logdens1.unif
+  rprop.gen2 <- rprop.gen2.truncnorm
+  rprop.logdens2 <- rprop.logdens2.truncnorm
 
   if (!is.null(extra_args$r.a)) {
     r.a <- extra_args$r.a
@@ -224,7 +230,12 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
     #update inverse lengthscales (r_m's) and delta_m's
     ##################################################
     out <- update_r_delta_joint_distribution_transform(delta, w,  y, Z,  eta, K, tau, a.p0, b.p0, p, N,
-                                           r.params, thres, Acc1, Acc2, i)
+                                           r.params, thres, Acc1, Acc2, i,
+                                           rprior.logdens = rprior.logdens,
+                                           rprop.gen1 = rprop.gen1,
+                                           rprop.logdens1 = rprop.logdens1,
+                                           rprop.gen2 = rprop.gen2,
+                                           rprop.logdens2 = rprop.logdens2)
     w <- out$w
     delta <- out$delta
     K <- out$K
