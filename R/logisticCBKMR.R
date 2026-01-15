@@ -1,6 +1,6 @@
 update_r_delta_joint_distribution_transform <- function(delta, w,  y, Z,  eta, K, tau, a.p0, b.p0, p, N,
                                                         r.params, thres, Acc1, Acc2, i,
-                                                        rprior.logdens, rprop.gen1, rprop.logdens1, rprop.gen2, rprop.logdens2){
+                                                        rprior.logdens, rprop.gen1, rprop.logdens1, rprop.gen2, rprop.logdens2, r_lthres = 0){
 
   n <- length(y)
   r_new <-  r.star <- w
@@ -26,30 +26,34 @@ update_r_delta_joint_distribution_transform <- function(delta, w,  y, Z,  eta, K
 
     # MH steps start to update the r_m, the priors and proposals are functions of (r, delta)
     r.star[comp] <- ifelse(delta.star[comp] == 0, 0, rprop.gen1(r.params = r.params))
-    diffpriors <- (lgamma(sum(delta.star) + a.p0) + lgamma(p - sum(delta.star) + b.p0) -
-                     lgamma(sum(delta) + a.p0) - lgamma(p - sum(delta) + b.p0)) +
-      ifelse(delta[comp] == 1, -1, 1)* rprior.logdens(x = ifelse(delta[comp] == 1,
-                                                                 w[comp], r.star[comp]), r.params = r.params)
 
-    negdifflogproposal <- -log(move.prob.star) + log(move.prob) -
-      ifelse(delta[comp] == 1, -1, 1)*with(list(r.sel =
-                                                  ifelse(delta[comp] == 1, w[comp], r.star[comp])),
-                                           rprop.logdens1(x = r.sel, r.params = r.params))
 
-    K_new <- kernel_mat_RBF_rcpp_openmp(Z, r.star)            # new kernel matrix
+    if(delta.star[comp] == 0 || r.star[comp] > r_lthres){
+      diffpriors <- (lgamma(sum(delta.star) + a.p0) + lgamma(p - sum(delta.star) + b.p0) -
+                       lgamma(sum(delta) + a.p0) - lgamma(p - sum(delta) + b.p0)) +
+        ifelse(delta[comp] == 1, -1, 1)* rprior.logdens(x = ifelse(delta[comp] == 1,
+                                                                   w[comp], r.star[comp]), r.params = r.params)
 
-    ll_new <- logdmvn_arma(F_y, K_new*tau + diag(1 - tau, N)) # these two are comp. intensive steps
-    ll_old <- logdmvn_arma(F_y, K*tau + diag(1 - tau, N))
+      negdifflogproposal <- -log(move.prob.star) + log(move.prob) -
+        ifelse(delta[comp] == 1, -1, 1)*with(list(r.sel =
+                                                    ifelse(delta[comp] == 1, w[comp], r.star[comp])),
+                                             rprop.logdens1(x = r.sel, r.params = r.params))
 
-    log_ratio <- (ll_new - ll_old) + diffpriors +  negdifflogproposal
-    log_ratio[is.na(log_ratio)] <- 0
-    logalpha <- min(0,log_ratio)
+      K_new <- kernel_mat_RBF_rcpp_openmp(Z, r.star)            # new kernel matrix
 
-    if (log(runif(1)) <  logalpha) {
-      delta_new <- delta.star
-      r_new <- r.star
-      K <- K_new
-      Acc1[i, comp] <- 1
+      ll_new <- logdmvn_arma(F_y, K_new*tau + diag(1 - tau, N)) # these two are comp. intensive steps
+      ll_old <- logdmvn_arma(F_y, K*tau + diag(1 - tau, N))
+
+      log_ratio <- (ll_new - ll_old) + diffpriors +  negdifflogproposal
+      log_ratio[is.na(log_ratio)] <- 0
+      logalpha <- min(0,log_ratio)
+
+      if (log(runif(1)) <  logalpha) {
+        delta_new <- delta.star
+        r_new <- r.star
+        K <- K_new
+        Acc1[i, comp] <- 1
+      }
     }
   }
 
@@ -60,29 +64,32 @@ update_r_delta_joint_distribution_transform <- function(delta, w,  y, Z,  eta, K
 
     # next MH steps are similar as Move 1
     r.star[comp] <- rprop.gen2(current = w[comp], r.params = r.params)
+    if(r.star[comp] > r_lthres){
+      K_new <- kernel_mat_RBF_rcpp_openmp(Z, r.star)
+      ll_new <- logdmvn_arma(F_y, K_new*tau + diag(1 - tau, N))
+      ll_old <- logdmvn_arma(F_y, K*tau + diag(1 - tau, N))
 
-    K_new <- kernel_mat_RBF_rcpp_openmp(Z, r.star)
-    ll_new <- logdmvn_arma(F_y, K_new*tau + diag(1 - tau, N))
-    ll_old <- logdmvn_arma(F_y, K*tau + diag(1 - tau, N))
+      diffpriors <- rprior.logdens(r.star[comp], r.params = r.params) -
+        rprior.logdens(w[comp], r.params = r.params)
 
-    diffpriors <- rprior.logdens(r.star[comp], r.params = r.params) -
-      rprior.logdens(w[comp], r.params = r.params)
+      negdifflogproposal <- -rprop.logdens2(r.star[comp], w[comp],
+                                            r.params = r.params) + rprop.logdens2(w[comp],
+                                                                                  r.star[comp], r.params = r.params)
 
-    negdifflogproposal <- -rprop.logdens2(r.star[comp], w[comp],
-                                          r.params = r.params) + rprop.logdens2(w[comp],
-                                                                                r.star[comp], r.params = r.params)
+      negdifflogproposal[is.na(negdifflogproposal)] <- 0
+      log_ratio <- (ll_new - ll_old) + diffpriors + negdifflogproposal
+      log_ratio[is.na(log_ratio)] <- 0
 
-    negdifflogproposal[is.na(negdifflogproposal)] <- 0
-    log_ratio <- (ll_new - ll_old) + diffpriors + negdifflogproposal
-    log_ratio[is.na(log_ratio)] <- 0
+      logalpha <- min(0,log_ratio)
 
-    logalpha <- min(0,log_ratio)
-
-    if (log(runif(1)) <  logalpha) {
-      r_new <- r.star
-      K <- K_new
-      Acc2[i, comp] <- 1
+      if (log(runif(1)) <  logalpha) {
+        r_new <- r.star
+        K <- K_new
+        Acc2[i, comp] <- 1
+      }
     }
+
+
   }
 
   return(list(w = r_new, delta = delta_new, K = K,  Acc1 = Acc1,
@@ -171,6 +178,11 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
   }else{
     sigma.r <- 1
   }
+  if(!is.null(extra_args$r_lthres)){
+    r_lthres <- extra_args$r_lthres
+  }else{
+    r_lthres <- 0
+  }
 
   set.seed(seed)
 
@@ -235,7 +247,7 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
                                            rprop.gen1 = rprop.gen1,
                                            rprop.logdens1 = rprop.logdens1,
                                            rprop.gen2 = rprop.gen2,
-                                           rprop.logdens2 = rprop.logdens2)
+                                           rprop.logdens2 = rprop.logdens2, r_lthres = r_lthres)
     w <- out$w
     delta <- out$delta
     K <- out$K

@@ -14,7 +14,7 @@
 find_ordered_nn_wvec <- function(locs, w, m, wthres=1e-4){
   # assume locs are already ordered
   if(all(w < wthres)){w = rep(wthres, length(w))}
-  nonz_dim = which(c(w) > wthres)
+  nonz_dim = which(c(w) >= wthres)
   locs = locs[, nonz_dim, drop=FALSE]
   nn_ind = find_ordered_nn(t(sqrt(w[nonz_dim])*t(locs)), m = m)[,-1]
   return(nn_ind)
@@ -22,7 +22,7 @@ find_ordered_nn_wvec <- function(locs, w, m, wthres=1e-4){
 
 update_r_delta_joint_distribution_transform_rnngp <- function(delta, w,  y, Z,  eta, K, tau, a.p0, b.p0, p, N,
                                           r.params, thres, Acc1, Acc2, i, nngp_obj,
-                                          rprior.logdens, rprop.gen1, rprop.logdens1, rprop.gen2, rprop.logdens2){
+                                          rprior.logdens, rprop.gen1, rprop.logdens1, rprop.gen2, rprop.logdens2, r_lthres = 0){
 
   Z_NN1 = nngp_obj$nn_ind
 
@@ -51,30 +51,33 @@ update_r_delta_joint_distribution_transform_rnngp <- function(delta, w,  y, Z,  
 
     # MH steps start to update the r_m, the priors and proposals are functions of (r, delta)
     r.star[comp] <- ifelse(delta.star[comp] == 0, 0, rprop.gen1(r.params = r.params))
-    diffpriors <- (lgamma(sum(delta.star) + a.p0) + lgamma(p - sum(delta.star) + b.p0) -
-                     lgamma(sum(delta) + a.p0) - lgamma(p - sum(delta) + b.p0)) +
-      ifelse(delta[comp] == 1, -1, 1)* rprior.logdens(x = ifelse(delta[comp] == 1,
-                                                                 w[comp], r.star[comp]), r.params = r.params)
 
-    negdifflogproposal <- -log(move.prob.star) + log(move.prob) -
-      ifelse(delta[comp] == 1, -1, 1)*with(list(r.sel =
-                                                  ifelse(delta[comp] == 1, w[comp], r.star[comp])),
-                                           rprop.logdens1(x = r.sel, r.params = r.params))
+    if(delta.star[comp] == 0 || r.star[comp] > r_lthres){
+      diffpriors <- (lgamma(sum(delta.star) + a.p0) + lgamma(p - sum(delta.star) + b.p0) -
+                       lgamma(sum(delta) + a.p0) - lgamma(p - sum(delta) + b.p0)) +
+        ifelse(delta[comp] == 1, -1, 1)* rprior.logdens(x = ifelse(delta[comp] == 1,
+                                                                   w[comp], r.star[comp]), r.params = r.params)
 
-    Z_NN2 = find_ordered_nn_wvec(locs = Z[nngp_obj$ordering, , drop=FALSE], w = r.star, m = nngp_obj$m)
+      negdifflogproposal <- -log(move.prob.star) + log(move.prob) -
+        ifelse(delta[comp] == 1, -1, 1)*with(list(r.sel =
+                                                    ifelse(delta[comp] == 1, w[comp], r.star[comp])),
+                                             rprop.logdens1(x = r.sel, r.params = r.params))
 
-    ll_new <- rnngp_loglik_tauonly(x=F_y[nngp_obj$ordering], coords=Z[nngp_obj$ordering, , drop=FALSE], w = r.star, neighbor_matrix = Z_NN2, tau = tau)
-    ll_old <- rnngp_loglik_tauonly(x=F_y[nngp_obj$ordering], coords=Z[nngp_obj$ordering, , drop=FALSE], w = w, neighbor_matrix = Z_NN1, tau = tau)
+      Z_NN2 = find_ordered_nn_wvec(locs = Z[nngp_obj$ordering, , drop=FALSE], w = r.star, m = nngp_obj$m)
 
-    log_ratio <- (ll_new - ll_old) + diffpriors +  negdifflogproposal
-    log_ratio[is.na(log_ratio)] <- 0
-    logalpha <- min(0,log_ratio)
+      ll_new <- rnngp_loglik_tauonly(x=F_y[nngp_obj$ordering], coords=Z[nngp_obj$ordering, , drop=FALSE], w = r.star, neighbor_matrix = Z_NN2, tau = tau)
+      ll_old <- rnngp_loglik_tauonly(x=F_y[nngp_obj$ordering], coords=Z[nngp_obj$ordering, , drop=FALSE], w = w, neighbor_matrix = Z_NN1, tau = tau)
 
-    if (log(runif(1)) <  logalpha) {
-      delta_new <- delta.star
-      r_new <- r.star
-      Acc1[i, comp] <- 1
-      nngp_obj$nn_ind = Z_NN2
+      log_ratio <- (ll_new - ll_old) + diffpriors +  negdifflogproposal
+      log_ratio[is.na(log_ratio)] <- 0
+      logalpha <- min(0,log_ratio)
+
+      if (log(runif(1)) <  logalpha) {
+        delta_new <- delta.star
+        r_new <- r.star
+        Acc1[i, comp] <- 1
+        nngp_obj$nn_ind = Z_NN2
+      }
     }
   }
 
@@ -86,28 +89,30 @@ update_r_delta_joint_distribution_transform_rnngp <- function(delta, w,  y, Z,  
     # next MH steps are similar as Move 1
     r.star[comp] <- rprop.gen2(current = w[comp], r.params = r.params)
 
-    Z_NN2 = find_ordered_nn_wvec(locs = Z[nngp_obj$ordering, , drop=FALSE], w = r.star, m = nngp_obj$m)
+    if(r.star[comp] > r_lthres){
+      Z_NN2 = find_ordered_nn_wvec(locs = Z[nngp_obj$ordering, , drop=FALSE], w = r.star, m = nngp_obj$m)
 
-    ll_new <- rnngp_loglik_tauonly(x=F_y[nngp_obj$ordering], coords=Z[nngp_obj$ordering, , drop=FALSE], w = r.star, neighbor_matrix = Z_NN2, tau = tau)
-    ll_old <- rnngp_loglik_tauonly(x=F_y[nngp_obj$ordering], coords=Z[nngp_obj$ordering, , drop=FALSE], w = w, neighbor_matrix = Z_NN1, tau = tau)
+      ll_new <- rnngp_loglik_tauonly(x=F_y[nngp_obj$ordering], coords=Z[nngp_obj$ordering, , drop=FALSE], w = r.star, neighbor_matrix = Z_NN2, tau = tau)
+      ll_old <- rnngp_loglik_tauonly(x=F_y[nngp_obj$ordering], coords=Z[nngp_obj$ordering, , drop=FALSE], w = w, neighbor_matrix = Z_NN1, tau = tau)
 
-    diffpriors <- rprior.logdens(r.star[comp], r.params = r.params) -
-      rprior.logdens(w[comp], r.params = r.params)
+      diffpriors <- rprior.logdens(r.star[comp], r.params = r.params) -
+        rprior.logdens(w[comp], r.params = r.params)
 
-    negdifflogproposal <- -rprop.logdens2(r.star[comp], w[comp],
-                                          r.params = r.params) + rprop.logdens2(w[comp],
-                                                                                r.star[comp], r.params = r.params)
+      negdifflogproposal <- -rprop.logdens2(r.star[comp], w[comp],
+                                            r.params = r.params) + rprop.logdens2(w[comp],
+                                                                                  r.star[comp], r.params = r.params)
 
-    negdifflogproposal[is.na(negdifflogproposal)] <- 0
-    log_ratio <- (ll_new - ll_old) + diffpriors + negdifflogproposal
-    log_ratio[is.na(log_ratio)] <- 0
+      negdifflogproposal[is.na(negdifflogproposal)] <- 0
+      log_ratio <- (ll_new - ll_old) + diffpriors + negdifflogproposal
+      log_ratio[is.na(log_ratio)] <- 0
 
-    logalpha <- min(0,log_ratio)
+      logalpha <- min(0,log_ratio)
 
-    if (log(runif(1)) <  logalpha) {
-      r_new <- r.star
-      Acc2[i, comp] <- 1
-      nngp_obj$nn_ind = Z_NN2
+      if (log(runif(1)) <  logalpha) {
+        r_new <- r.star
+        Acc2[i, comp] <- 1
+        nngp_obj$nn_ind = Z_NN2
+      }
     }
   }
 
@@ -169,6 +174,11 @@ logisticNNCBKMR <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, 
     sigma.r <- extra_args$sigma.r
   }else{
     sigma.r <- 1
+  }
+  if(!is.null(extra_args$r_lthres)){
+    r_lthres <- extra_args$r_lthres
+  }else{
+    r_lthres <- 0
   }
 
   set.seed(seed)
@@ -245,7 +255,7 @@ logisticNNCBKMR <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, 
                                          rprop.gen1 = rprop.gen1,
                                          rprop.logdens1 = rprop.logdens1,
                                          rprop.gen2 = rprop.gen2,
-                                         rprop.logdens2 = rprop.logdens2)
+                                         rprop.logdens2 = rprop.logdens2, r_lthres = r_lthres)
     w <- out$w
     delta <- out$delta
 
