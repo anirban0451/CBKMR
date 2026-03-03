@@ -130,6 +130,11 @@ logisticNNCBKMR <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, 
   } else {
     seed <- 1234
   }
+  if (!is.null(extra_args$zero_prop)) {
+    zero_prop <- extra_args$zero_prop
+  } else {
+    zero_prop <- 0.6
+  }
 
   if (!is.null(extra_args$priordist)) {
     priordist <- extra_args$priordist
@@ -229,7 +234,9 @@ logisticNNCBKMR <- function(y, Z = Z, nsim = 5000,  verbose = TRUE, thres = 10, 
   accrho <- 0
   h <- h_star <- rep(0, N)
   w <- rep(1, p)                          # initialize inverse lengthscales, r_m's, calling the vector w instead of r
-  w[sample.int(p, size = floor(0.6*p))] = 0  # initialize with 50% of the variables excluded]
+  if(zero_prop > 0){
+    w[sample.int(p, size = floor(zero_prop*p))] = 0  # initialize with 50% of the variables excluded]
+  }
   w_NB <- rep(1, N)                       # initialize Polya-Gamma (PG) weights
   z <- rep(1, N)                          # initialize latent factors
   delta <- rep(1, p)                      # initialize spike and slab indicator, all variables are included at the start

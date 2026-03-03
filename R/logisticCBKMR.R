@@ -132,6 +132,11 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
   } else {
     seed <- 1234
   }
+  if (!is.null(extra_args$zero_prop)) {
+    zero_prop <- extra_args$zero_prop
+  } else {
+    zero_prop <- 0.6
+  }
 
   if (!is.null(extra_args$priordist)) {
     priordist <- extra_args$priordist
@@ -221,7 +226,9 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
   accrho <- 0
   h <- h_star <- rep(0, N)
   w <- rep(1, p)                          # initialize inverse lengthscales, r_m's, calling the vector w instead of r
-  w[sample(1:p, size = floor(0.6*p))] <- 0  # set 60% of the r_m's to zero at the start]
+  if(zero_prop > 0){
+    w[sample(1:p, size = floor(zero_prop*p))] <- 0  # set 60% of the r_m's to zero at the start]
+  }
   z <- rep(1, N)                          # initialize latent factors
   delta <- rep(1, p)                      # initialize spike and slab indicator, all variables are included at the start
   lambda0 <- rep(1, p)
