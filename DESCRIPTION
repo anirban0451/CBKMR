@@ -1,5 +1,5 @@
 Package: CBKMR
-Title: Copula-based Bayesian kernel machine learning regression
+Title: Copula-based Bayesian kernel machine regression
 Version: 0.0.0.9000
 Authors@R: 
     person("Anirban", "Chakraborty", , "anirban0451@gmail.com", role = c("aut", "cre"))
