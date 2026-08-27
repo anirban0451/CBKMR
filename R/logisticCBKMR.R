@@ -1,5 +1,6 @@
 update_r_delta_joint_distribution_transform <- function(delta, w,  y, Z,  eta, K, tau, a.p0, b.p0, p, N,
-                                                        r.params, thres, Acc1, Acc2, i){
+                                                        r.params, thres, Acc1, Acc2, i,
+                                                        rprior.logdens, rprop.gen1, rprop.logdens1, rprop.gen2, rprop.logdens2, r_lthres = 0){
 
   n <- length(y)
   r_new <-  r.star <- w
@@ -25,30 +26,34 @@ update_r_delta_joint_distribution_transform <- function(delta, w,  y, Z,  eta, K
 
     # MH steps start to update the r_m, the priors and proposals are functions of (r, delta)
     r.star[comp] <- ifelse(delta.star[comp] == 0, 0, rprop.gen1(r.params = r.params))
-    diffpriors <- (lgamma(sum(delta.star) + a.p0) + lgamma(p - sum(delta.star) + b.p0) -
-                     lgamma(sum(delta) + a.p0) - lgamma(p - sum(delta) + b.p0)) +
-      ifelse(delta[comp] == 1, -1, 1)* rprior.logdens(x = ifelse(delta[comp] == 1,
-                                                                 w[comp], r.star[comp]), r.params = r.params)
 
-    negdifflogproposal <- -log(move.prob.star) + log(move.prob) -
-      ifelse(delta[comp] == 1, -1, 1)*with(list(r.sel =
-                                                  ifelse(delta[comp] == 1, w[comp], r.star[comp])),
-                                           rprop.logdens1(x = r.sel, r.params = r.params))
 
-    K_new <- kernel_mat_RBF_rcpp_openmp(Z, r.star)            # new kernel matrix
+    if(delta.star[comp] == 0 || r.star[comp] > r_lthres){
+      diffpriors <- (lgamma(sum(delta.star) + a.p0) + lgamma(p - sum(delta.star) + b.p0) -
+                       lgamma(sum(delta) + a.p0) - lgamma(p - sum(delta) + b.p0)) +
+        ifelse(delta[comp] == 1, -1, 1)* rprior.logdens(x = ifelse(delta[comp] == 1,
+                                                                   w[comp], r.star[comp]), r.params = r.params)
 
-    ll_new <- logdmvn_arma(F_y, K_new*tau + diag(1 - tau, N)) # these two are comp. intensive steps
-    ll_old <- logdmvn_arma(F_y, K*tau + diag(1 - tau, N))
+      negdifflogproposal <- -log(move.prob.star) + log(move.prob) -
+        ifelse(delta[comp] == 1, -1, 1)*with(list(r.sel =
+                                                    ifelse(delta[comp] == 1, w[comp], r.star[comp])),
+                                             rprop.logdens1(x = r.sel, r.params = r.params))
 
-    log_ratio <- (ll_new - ll_old) + diffpriors +  negdifflogproposal
-    log_ratio[is.na(log_ratio)] <- 0
-    logalpha <- min(0,log_ratio)
+      K_new <- kernel_mat_RBF_rcpp_openmp(Z, r.star)            # new kernel matrix
 
-    if (log(runif(1)) <  logalpha) {
-      delta_new <- delta.star
-      r_new <- r.star
-      K <- K_new
-      Acc1[i, comp] <- 1
+      ll_new <- logdmvn_arma(F_y, K_new*tau + diag(1 - tau, N)) # these two are comp. intensive steps
+      ll_old <- logdmvn_arma(F_y, K*tau + diag(1 - tau, N))
+
+      log_ratio <- (ll_new - ll_old) + diffpriors +  negdifflogproposal
+      log_ratio[is.na(log_ratio)] <- 0
+      logalpha <- min(0,log_ratio)
+
+      if (log(runif(1)) <  logalpha) {
+        delta_new <- delta.star
+        r_new <- r.star
+        K <- K_new
+        Acc1[comp] <- Acc1[comp] + 1
+      }
     }
   }
 
@@ -59,29 +64,32 @@ update_r_delta_joint_distribution_transform <- function(delta, w,  y, Z,  eta, K
 
     # next MH steps are similar as Move 1
     r.star[comp] <- rprop.gen2(current = w[comp], r.params = r.params)
+    if(r.star[comp] > r_lthres){
+      K_new <- kernel_mat_RBF_rcpp_openmp(Z, r.star)
+      ll_new <- logdmvn_arma(F_y, K_new*tau + diag(1 - tau, N))
+      ll_old <- logdmvn_arma(F_y, K*tau + diag(1 - tau, N))
 
-    K_new <- kernel_mat_RBF_rcpp_openmp(Z, r.star)
-    ll_new <- logdmvn_arma(F_y, K_new*tau + diag(1 - tau, N))
-    ll_old <- logdmvn_arma(F_y, K*tau + diag(1 - tau, N))
+      diffpriors <- rprior.logdens(r.star[comp], r.params = r.params) -
+        rprior.logdens(w[comp], r.params = r.params)
 
-    diffpriors <- rprior.logdens(r.star[comp], r.params = r.params) -
-      rprior.logdens(w[comp], r.params = r.params)
+      negdifflogproposal <- -rprop.logdens2(r.star[comp], w[comp],
+                                            r.params = r.params) + rprop.logdens2(w[comp],
+                                                                                  r.star[comp], r.params = r.params)
 
-    negdifflogproposal <- -rprop.logdens2(r.star[comp], w[comp],
-                                          r.params = r.params) + rprop.logdens2(w[comp],
-                                                                                r.star[comp], r.params = r.params)
+      negdifflogproposal[is.na(negdifflogproposal)] <- 0
+      log_ratio <- (ll_new - ll_old) + diffpriors + negdifflogproposal
+      log_ratio[is.na(log_ratio)] <- 0
 
-    negdifflogproposal[is.na(negdifflogproposal)] <- 0
-    log_ratio <- (ll_new - ll_old) + diffpriors + negdifflogproposal
-    log_ratio[is.na(log_ratio)] <- 0
+      logalpha <- min(0,log_ratio)
 
-    logalpha <- min(0,log_ratio)
-
-    if (log(runif(1)) <  logalpha) {
-      r_new <- r.star
-      K <- K_new
-      Acc2[i, comp] <- 1
+      if (log(runif(1)) <  logalpha) {
+        r_new <- r.star
+        K <- K_new
+        Acc2[comp] <- Acc2[comp] + 1
+      }
     }
+
+
   }
 
   return(list(w = r_new, delta = delta_new, K = K,  Acc1 = Acc1,
@@ -124,6 +132,31 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
   } else {
     seed <- 1234
   }
+  if (!is.null(extra_args$zero_prop)) {
+    zero_prop <- extra_args$zero_prop
+  } else {
+    zero_prop <- 0.2
+  }
+
+  if (!is.null(extra_args$priordist)) {
+    priordist <- extra_args$priordist
+    if (!(priordist %in% c("uniform", "gamma", "hcauchy", "invunif"))) {
+      stop("Invalid prior distribution specified. Choose from 'uniform', 'dgamma', 'dhcauchy', or 'invunif'.")
+    }
+  } else {
+    priordist = "uniform"
+  }
+
+  rprior.logdens <- switch(priordist,
+                           "uniform" = rprior.logdens.unif,
+                           "gamma" = rprior.logdens.dgamma,
+                           "hcauchy" = rprior.logdens.dhcauchy,
+                           "invunif" = rprior.logdens.invunif)
+
+  rprop.gen1 <- rprop.gen1.unif
+  rprop.logdens1 <- rprop.logdens1.unif
+  rprop.gen2 <- rprop.gen2.truncnorm
+  rprop.logdens2 <- rprop.logdens2.truncnorm
 
   if (!is.null(extra_args$r.a)) {
     r.a <- extra_args$r.a
@@ -140,11 +173,26 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
   } else {
     r.jump2 <- 0.5
   }
+  if(!is.null(extra_args$mu.r)){
+    mu.r <- extra_args$mu.r
+  }else{
+    mu.r <- 2
+  }
+  if(!is.null(extra_args$sigma.r)){
+    sigma.r <- extra_args$sigma.r
+  }else{
+    sigma.r <- 1
+  }
+  if(!is.null(extra_args$r_lthres)){
+    r_lthres <- extra_args$r_lthres
+  }else{
+    r_lthres <- 0
+  }
 
   set.seed(seed)
 
-  # r.params <- list(r.a = 0, r.b = 5, r.jump2 = 0.5)
-  r.params <- list(r.a = r.a, r.b = r.b, r.jump2 = r.jump2)
+  r.params <- list(r.a = r.a, r.b = r.b, r.jump2 = r.jump2, mu.r = mu.r, sigma.r = sigma.r)
+
   if(beta0_scheme == 1){
     # update through random walk Metropolis
     update_beta0_fn <- update_beta0_with_MH_no_X
@@ -166,9 +214,13 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
   lastit<-(nsim-burn)/thin	# Last stored value
 
   # Store
-  Beta<-matrix(0, lastit, 1)              # only intercept, can be generalized for covariates
-  Acc1 <-  Acc2 <-  matrix(0, nsim, p)    # keeps track of RJ-MCMC acceptance probabilities
-  wmat<-delmat<-matrix(0, lastit, p)      # stores inverse length-scales and deltas
+  Beta <- matrix(0, lastit, 1)              # only intercept, can be generalized for covariates
+  # Acc1 <- Acc2 <- matrix(0, nsim, p)    # keeps track of RJ-MCMC acceptance probabilities
+  Acc1 <- Acc2 <- rep(0, p)
+  # wmat <- matrix(0, lastit, p)      # stores inverse length-scales and deltas
+  w_cols_list <- vector("list", lastit)
+  w_vals_list <- vector("list", lastit)
+  delmat <- matrix(as.raw(0), lastit, p)
   tau_mat <- matrix(0, lastit, 1)
   #Init
   beta0 <- rep(0, 1)
@@ -178,11 +230,49 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
   accrho <- 0
   h <- h_star <- rep(0, N)
   w <- rep(1, p)                          # initialize inverse lengthscales, r_m's, calling the vector w instead of r
-  w[sample(1:p, size = floor(0.6*p))] <- 0  # set 60% of the r_m's to zero at the start]
+  if(zero_prop > 0){
+    w[sample(1:p, size = floor(zero_prop*p))] <- 0  # set 100*zero_prop% of the r_m's to zero at the start]
+  }
   z <- rep(1, N)                          # initialize latent factors
   delta <- rep(1, p)                      # initialize spike and slab indicator, all variables are included at the start
   lambda0 <- rep(1, p)
-  a.p0 <- b.p0 <- 1                       # prior params for delta
+
+  if(!is.null(extra_args$a.p0)){
+    a.p0 <- extra_args$a.p0
+  }else{
+    a.p0 <- 1
+  }
+  if(!is.null(extra_args$b.p0)){
+    b.p0 <- extra_args$b.p0
+  }else{
+    b.p0 <- 1
+  }
+
+  use_rf = extra_args$use_rf
+  if(isTRUE(use_rf)){
+    X <- as.data.frame(Z)
+
+    library(caret)
+    y_logis <- factor(y,
+                levels = c(1, 0),
+                labels = c("pos", "neg"))
+
+    ctrl <- trainControl(method = "cv", number = 5,
+                         classProbs = TRUE, summaryFunction = twoClassSummary)
+
+    rf  <- train(x = X, y = y_logis, method = "rf", metric = "auc", trControl = ctrl)
+
+
+    vi <- caret::varImp(rf, scale = F)
+    importance_df <- as.data.frame(vi$importance)
+    importance_df$Feature <- rownames(importance_df)
+    first20 = order(importance_df$Overall, decreasing = TRUE)[1:20]
+    rows = match(importance_df$Feature[first20], colnames(X))
+
+    delta = rep(0, p); delta[rows] = 1
+    w <- rep(0, p); w[rows] = 0.5
+    remove(X); remove(y_logis)
+  }
 
 
   K <- kernel_mat_RBF_rcpp_openmp(Z, w)   # initial kernel matrix
@@ -199,7 +289,12 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
     #update inverse lengthscales (r_m's) and delta_m's
     ##################################################
     out <- update_r_delta_joint_distribution_transform(delta, w,  y, Z,  eta, K, tau, a.p0, b.p0, p, N,
-                                           r.params, thres, Acc1, Acc2, i)
+                                           r.params, thres, Acc1, Acc2, i,
+                                           rprior.logdens = rprior.logdens,
+                                           rprop.gen1 = rprop.gen1,
+                                           rprop.logdens1 = rprop.logdens1,
+                                           rprop.gen2 = rprop.gen2,
+                                           rprop.logdens2 = rprop.logdens2, r_lthres = r_lthres)
     w <- out$w
     delta <- out$delta
     K <- out$K
@@ -251,18 +346,39 @@ logisticCBKMR <- function(y, Z, nsim = 5000,  verbose = TRUE, thres = 10, beta0_
       j<-(i-burn)/thin
       Beta[j,]<-beta0
       tau_mat[j,]<-tau
-      wmat[j, ]<-w
-      delmat[j, ]<-delta
+      # wmat[j, ]<-w
+      active_idx <- which(delta == 1)
+      w_cols_list[[j]] <- active_idx
+      w_vals_list[[j]] <- w[active_idx]
+      delmat[j, ]<-as.raw(delta)
     }
     if(verbose){
       svMisc::progress(i, nsim, progress.bar = FALSE)
-    }else{if(i%%500 == 0){print(paste0(i, " / ", nsim))}
+    }else{if(i%%5000 == 0)
+    {
+      print(paste0(i, " / ", nsim))
+      gc()
+    }
     }
   }
 
-  mcmc.setup.details <- list(thin = thin, burn = burn, lastit = lastit,
-                             r.params = r.params, seed = seed)
+  mcmc.setup.details <- list(priordistn = priordist, thin = thin, burn = burn, lastit = lastit,
+                             r.params = r.params, seed = seed, nsim = nsim)
 
-  return(NB = list(Beta = Beta, tau =  tau_mat,  wmat = wmat, delta = delmat,
+  row_indices <- rep(1:lastit, times = lengths(w_cols_list))
+  col_indices <- unlist(w_cols_list)
+  values      <- unlist(w_vals_list)
+  wmat_sparse <- sparseMatrix(
+    i = row_indices,
+    j = col_indices,
+    x = values,
+    dims = c(lastit, p)
+  )
+
+  rm(w_cols_list, w_vals_list, row_indices, col_indices, values)
+  gc()
+
+  return(NB = list(Beta = Beta, tau =  tau_mat,
+                   wmat = wmat_sparse, delta = delmat,
                    Acc1 = Acc1, Acc2 = Acc2, mcmc.setup.details = mcmc.setup.details))
 }
