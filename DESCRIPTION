@@ -14,5 +14,6 @@ LinkingTo:
 Imports: 
     extraDistr,
     GpGp,
+    Matrix,
     Rcpp,
     stats

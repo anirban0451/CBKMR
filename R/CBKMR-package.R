@@ -2,6 +2,7 @@
 #' @importFrom extraDistr dhcauchy
 #' @importFrom GpGp find_ordered_nn
 #' @importFrom GpGp order_maxmin
+#' @importFrom Matrix sparseMatrix
 #' @importFrom Rcpp sourceCpp
 #' @importFrom stats dbeta
 #' @importFrom stats dnorm
