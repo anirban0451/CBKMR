@@ -106,6 +106,19 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// kernel_cross_RBF_rcpp_openmp
+arma::mat kernel_cross_RBF_rcpp_openmp(const arma::mat& Z1, const arma::mat& Z2, const arma::vec& w);
+RcppExport SEXP _CBKMR_kernel_cross_RBF_rcpp_openmp(SEXP Z1SEXP, SEXP Z2SEXP, SEXP wSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type Z1(Z1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Z2(Z2SEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type w(wSEXP);
+    rcpp_result_gen = Rcpp::wrap(kernel_cross_RBF_rcpp_openmp(Z1, Z2, w));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_CBKMR_logdmvn_arma", (DL_FUNC) &_CBKMR_logdmvn_arma, 2},
@@ -115,6 +128,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_CBKMR_rnngp_loglik_tauonly", (DL_FUNC) &_CBKMR_rnngp_loglik_tauonly, 6},
     {"_CBKMR_rnngp_loglik_tauonly_use_AD", (DL_FUNC) &_CBKMR_rnngp_loglik_tauonly_use_AD, 6},
     {"_CBKMR_kernel_mat_RBF_rcpp_openmp", (DL_FUNC) &_CBKMR_kernel_mat_RBF_rcpp_openmp, 2},
+    {"_CBKMR_kernel_cross_RBF_rcpp_openmp", (DL_FUNC) &_CBKMR_kernel_cross_RBF_rcpp_openmp, 3},
     {NULL, NULL, 0}
 };
 

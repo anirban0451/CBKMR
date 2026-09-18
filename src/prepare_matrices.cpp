@@ -52,3 +52,44 @@ arma::mat kernel_mat_RBF_rcpp_openmp(const arma::mat& Z, const arma::vec& w) {
   }
   return K;
 }
+
+
+//' Compute Cross-Covariance RBF kernel matrix between Z1 and Z2 using OpenMP
+//'
+//' @param Z1 An N1 x p matrix (can be 1 x p)
+//' @param Z2 An N2 x p matrix
+//' @param w A vector of length p containing weights for each dimension
+//' @return An N1 x N2 RBF kernel matrix
+// [[Rcpp::export]]
+arma::mat kernel_cross_RBF_rcpp_openmp(const arma::mat& Z1, const arma::mat& Z2, const arma::vec& w) {
+  int N1 = Z1.n_rows;
+  int N2 = Z2.n_rows;
+  int p = Z1.n_cols;
+
+  arma::mat K(N1, N2, arma::fill::zeros);
+
+  // Pre-scale columns of Z1 and Z2 by sqrt of weights
+  arma::mat Z1w = Z1;
+  arma::mat Z2w = Z2;
+  for(int k = 0; k < p; ++k) {
+    double sqrt_w = std::sqrt(w(k));
+    Z1w.col(k) *= sqrt_w;
+    Z2w.col(k) *= sqrt_w;
+  }
+
+   // Parallelize outer loop using OpenMP
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+ for (int i = 0; i < N1; ++i) {
+   for (int j = 0; j < N2; ++j) {
+     double dist_sq = 0.0;
+     for (int k = 0; k < p; ++k) {
+       double diff = Z1w(i,k) - Z2w(j,k);
+       dist_sq += diff * diff;
+     }
+     K(i,j) = std::exp(-dist_sq);
+   }
+ }
+ return K;
+}

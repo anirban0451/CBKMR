@@ -124,3 +124,13 @@ kernel_mat_RBF_rcpp_openmp <- function(Z, w) {
     .Call(`_CBKMR_kernel_mat_RBF_rcpp_openmp`, Z, w)
 }
 
+#' Compute Cross-Covariance RBF kernel matrix between Z1 and Z2 using OpenMP
+#'
+#' @param Z1 An N1 x p matrix (can be 1 x p)
+#' @param Z2 An N2 x p matrix
+#' @param w A vector of length p containing weights for each dimension
+#' @return An N1 x N2 RBF kernel matrix
+kernel_cross_RBF_rcpp_openmp <- function(Z1, Z2, w) {
+    .Call(`_CBKMR_kernel_cross_RBF_rcpp_openmp`, Z1, Z2, w)
+}
+
