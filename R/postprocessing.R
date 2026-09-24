@@ -20,6 +20,7 @@ cbkmr_postprocess = function(res, ...){
   if(length(non_z_entries) == 0){
     warning("No features exceeded the PIP threshold. Returning empty active set.")
     return(list(
+      pip = colMeans(delta1),
       selected = integer(0),
       post_rel = numeric(0),
       post_beta = colMeans(res$Beta),
@@ -34,9 +35,14 @@ cbkmr_postprocess = function(res, ...){
   betamat = res$Beta[seq(1, nrow(res$Beta), by = thin), , drop = FALSE]
   tau_thinned = res$tau[seq(1, nrow(res$tau), by = thin), , drop = FALSE]
 
+  # Return the whole relevance vector
+  post_rel = rep(0, ncol(delta1))
+  post_rel[non_z_entries] = colMeans(as.matrix(wmat))
+
   return(list(
+    pip = colMeans(delta1),
     selected = non_z_entries,
-    post_rel = colMeans(as.matrix(wmat)),
+    post_rel = post_rel,
     post_beta = colMeans(betamat),
     post_tau = as.numeric(mean(tau_thinned))
   ))
