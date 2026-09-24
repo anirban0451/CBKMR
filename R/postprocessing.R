@@ -43,26 +43,37 @@ cbkmr_postprocess = function(res, ...){
 }
 
 average_precision_score <- function(y_true, y_score) {
-  # 1. Sort the scores in descending order and align true labels
-  ord <- order(y_score, decreasing = TRUE)
+  # Input guards
+  stopifnot(length(y_true) == length(y_score))
+  stopifnot(all(y_true %in% c(0, 1, NA)))
+
+  # Remove NAs
+  keep <- !is.na(y_score) & !is.na(y_true)
+  y_true  <- y_true[keep]
+  y_score <- y_score[keep]
+
+  n_pos <- sum(y_true == 1)
+
+  if (n_pos == 0L) {
+    warning("No positive labels: AP is undefined.")
+    return(NA_real_)
+  }
+
+  if (n_pos == length(y_true)) {
+    return(1.0)
+  }
+
+  # Break ties pessimistically: negatives before positives at same score
+  ord          <- order(y_score, -y_true, decreasing = TRUE)
   y_true_sorted <- y_true[ord]
 
-  # 2. Calculate Cumulative True Positives (TP) and False Positives (FP)
-  tp <- cumsum(y_true_sorted == 1)
-  fp <- cumsum(y_true_sorted == 0)
+  tp           <- cumsum(y_true_sorted == 1)
+  fp           <- cumsum(y_true_sorted == 0)
+  precision    <- tp / (tp + fp)
+  recall       <- tp / n_pos
+  recall_diff  <- diff(c(0, recall))
 
-  # 3. Calculate Precision and Recall at each threshold
-  precision <- tp / (tp + fp)
-  recall <- tp / sum(y_true == 1)
-
-  # 4. Calculate the change in recall (R_n - R_{n-1})
-  # Prepend 0 to recall to calculate the first step
-  recall_diff <- diff(c(0, recall))
-
-  # 5. Multiply the change in recall by the precision at that threshold and sum
-  ap <- sum(recall_diff * precision)
-
-  return(ap)
+  return(sum(recall_diff * precision))
 }
 
 cbkmr_predict = function(res, X = NULL, Z, y, new_X = NULL, new_Z, new_y = NULL){
